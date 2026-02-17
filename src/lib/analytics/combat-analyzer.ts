@@ -1,5 +1,10 @@
-import { FilteredTelemetry } from '../services/telemetry-service';
-import { CombatAnalysis, CombatEffectivenessScore, EngagementRanges } from '../../types';
+import { PUNCH_WEAPON_NAME, resolveWeaponName } from "../../constants/weapons";
+import {
+  CombatAnalysis,
+  CombatEffectivenessScore,
+  EngagementRanges,
+} from "../../types";
+import { FilteredTelemetry } from "../services/telemetry-service";
 
 interface BasicStats {
   kills: number;
@@ -8,13 +13,13 @@ interface BasicStats {
   DBNOs: number;
 }
 
-function getGrade(score: number): CombatEffectivenessScore['grade'] {
-  if (score >= 5) return 'S';
-  if (score >= 3.5) return 'A';
-  if (score >= 2.5) return 'B';
-  if (score >= 1.5) return 'C';
-  if (score >= 0.8) return 'D';
-  return 'F';
+function getGrade(score: number): CombatEffectivenessScore["grade"] {
+  if (score >= 5) return "S";
+  if (score >= 3.5) return "A";
+  if (score >= 2.5) return "B";
+  if (score >= 1.5) return "C";
+  if (score >= 0.8) return "D";
+  return "F";
 }
 
 function calculateCombatScore(
@@ -22,10 +27,12 @@ function calculateCombatScore(
   deaths: number,
   assists: number,
   damageDealt: number,
-  damageTaken: number
+  damageTaken: number,
 ): CombatEffectivenessScore {
-  const kda = deaths > 0 ? (kills + assists * 0.5) / deaths : kills + assists * 0.5;
-  const damageRatio = damageTaken > 0 ? damageDealt / damageTaken : damageDealt > 0 ? 2 : 1;
+  const kda =
+    deaths > 0 ? (kills + assists * 0.5) / deaths : kills + assists * 0.5;
+  const damageRatio =
+    damageTaken > 0 ? damageDealt / damageTaken : damageDealt > 0 ? 2 : 1;
 
   // Weighted score: 40% KDA, 40% damage ratio, 20% raw kills
   const score = kda * 0.4 + damageRatio * 0.4 + kills * 0.2;
@@ -42,12 +49,22 @@ export class CombatAnalyzer {
   analyze(
     telemetry: FilteredTelemetry,
     playerName: string,
-    participantStats: BasicStats
+    participantStats: BasicStats,
   ): CombatAnalysis {
     const nameLower = playerName.toLowerCase();
 
-    // Use participant stats for overall damage dealt
-    const damageDealt = participantStats.damageDealt;
+    // Damage dealt: from telemetry when available, excluding Punch when damage is 0 (default/unused)
+    let damageDealt: number;
+    if (telemetry.damageDealtEvents.length === 0) {
+      damageDealt = participantStats.damageDealt;
+    } else {
+      damageDealt = 0;
+      for (const e of telemetry.damageDealtEvents) {
+        const weapon = resolveWeaponName(e.damageCauserName);
+        if (weapon === PUNCH_WEAPON_NAME && e.damage <= 0) continue;
+        damageDealt += e.damage;
+      }
+    }
     const kills = participantStats.kills;
     const assists = participantStats.assists;
 
@@ -65,8 +82,16 @@ export class CombatAnalyzer {
     }
 
     // Calculate engagement ranges from kill distances
-    const ranges: { close: number; medium: number; long: number; extreme: number } = {
-      close: 0, medium: 0, long: 0, extreme: 0,
+    const ranges: {
+      close: number;
+      medium: number;
+      long: number;
+      extreme: number;
+    } = {
+      close: 0,
+      medium: 0,
+      long: 0,
+      extreme: 0,
     };
     let totalEngagements = 0;
 
@@ -99,13 +124,14 @@ export class CombatAnalyzer {
       1, // We treat each match as 1 death (player died or survived)
       assists,
       damageDealt,
-      damageTaken
+      damageTaken,
     );
 
     return {
       damageDealt,
       damageTaken,
-      damageRatio: damageTaken > 0 ? damageDealt / damageTaken : damageDealt > 0 ? 2 : 1,
+      damageRatio:
+        damageTaken > 0 ? damageDealt / damageTaken : damageDealt > 0 ? 2 : 1,
       engagementRanges,
       engagementWinRate,
       combatScore,
@@ -120,7 +146,7 @@ export class CombatAnalyzer {
         damageRatio: 1,
         engagementRanges: { close: 0, medium: 0, long: 0, extreme: 0 },
         engagementWinRate: 0,
-        combatScore: { score: 0, kda: 0, damageRatio: 1, grade: 'F' },
+        combatScore: { score: 0, kda: 0, damageRatio: 1, grade: "F" },
       };
     }
 
@@ -136,7 +162,8 @@ export class CombatAnalyzer {
     };
 
     const avgKda = analyses.reduce((s, a) => s + a.combatScore.kda, 0) / n;
-    const damageRatio = totalDamageTaken > 0 ? totalDamageDealt / totalDamageTaken : 2;
+    const damageRatio =
+      totalDamageTaken > 0 ? totalDamageDealt / totalDamageTaken : 2;
 
     const avgScore = analyses.reduce((s, a) => s + a.combatScore.score, 0) / n;
 
@@ -145,7 +172,8 @@ export class CombatAnalyzer {
       damageTaken: totalDamageTaken / n,
       damageRatio,
       engagementRanges: avgEngagementRanges,
-      engagementWinRate: analyses.reduce((s, a) => s + a.engagementWinRate, 0) / n,
+      engagementWinRate:
+        analyses.reduce((s, a) => s + a.engagementWinRate, 0) / n,
       combatScore: {
         score: avgScore,
         kda: avgKda,

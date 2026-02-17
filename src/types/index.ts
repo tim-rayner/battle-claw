@@ -15,7 +15,7 @@ export interface PubgIncluded {
 }
 
 export interface PlayerData {
-  type: 'player';
+  type: "player";
   id: string;
   attributes: {
     name: string;
@@ -28,13 +28,13 @@ export interface PlayerData {
   };
   relationships: {
     matches: {
-      data: Array<{ type: 'match'; id: string }>;
+      data: Array<{ type: "match"; id: string }>;
     };
   };
 }
 
 export interface MatchData {
-  type: 'match';
+  type: "match";
   id: string;
   attributes: {
     createdAt: string;
@@ -56,7 +56,7 @@ export interface MatchData {
 }
 
 export interface AssetData {
-  type: 'asset';
+  type: "asset";
   id: string;
   attributes: {
     URL: string;
@@ -67,7 +67,7 @@ export interface AssetData {
 }
 
 export interface RosterData {
-  type: 'roster';
+  type: "roster";
   id: string;
   attributes: {
     shardId: string;
@@ -86,7 +86,7 @@ export interface RosterData {
 }
 
 export interface ParticipantData {
-  type: 'participant';
+  type: "participant";
   id: string;
   attributes: {
     actor: string;
@@ -122,7 +122,7 @@ export interface ParticipantStats {
 }
 
 export interface SeasonData {
-  type: 'season';
+  type: "season";
   id: string;
   attributes: {
     isCurrentSeason: boolean;
@@ -138,7 +138,7 @@ export interface TelemetryEvent {
 }
 
 export interface LogPlayerAttack extends TelemetryEvent {
-  _T: 'LogPlayerAttack';
+  _T: "LogPlayerAttack";
   attackId: number;
   fireWeaponStackCount: number;
   attackType: string;
@@ -148,14 +148,23 @@ export interface LogPlayerAttack extends TelemetryEvent {
 }
 
 export interface LogWeaponFireCount extends TelemetryEvent {
-  _T: 'LogWeaponFireCount';
+  _T: "LogWeaponFireCount";
   character: TelemetryCharacter;
   weaponId: string;
   fireCount: number;
 }
 
+export interface DamageInfo {
+  damageReason: string;
+  damageTypeCategory: string;
+  damageCauserName: string;
+  additionalInfo: string[];
+  distance: number;
+  isThroughPenetrableWall: boolean;
+}
+
 export interface LogPlayerKillV2 extends TelemetryEvent {
-  _T: 'LogPlayerKillV2';
+  _T: "LogPlayerKillV2";
   attackId: number;
   dBNOId: number;
   victimGameResult: {
@@ -167,26 +176,18 @@ export interface LogPlayerKillV2 extends TelemetryEvent {
   victimWeapon: string;
   victimWeaponAdditionalInfo: string[];
   dBNOMaker: TelemetryCharacter | null;
-  dBNODamageInfo: unknown;
+  dBNODamageInfo: DamageInfo | null;
   finisher: TelemetryCharacter | null;
-  finishDamageInfo: unknown;
+  finishDamageInfo: DamageInfo | null;
   killer: TelemetryCharacter;
-  killerDamageInfo: {
-    causerName: string;
-    damage: number;
-    damageReason: string;
-    damageTypeCategory: string;
-    additionalInfo: string[];
-    distance: number;
-    isThroughPenetrableWall: boolean;
-  };
+  killerDamageInfo: DamageInfo;
   assists_AccountId: string[];
   teamKillers_AccountId: string[];
   isSuicide: boolean;
 }
 
 export interface LogPlayerTakeDamage extends TelemetryEvent {
-  _T: 'LogPlayerTakeDamage';
+  _T: "LogPlayerTakeDamage";
   attackId: number;
   attacker: TelemetryCharacter | null;
   victim: TelemetryCharacter;
@@ -199,28 +200,41 @@ export interface LogPlayerTakeDamage extends TelemetryEvent {
 }
 
 export interface LogPlayerPosition extends TelemetryEvent {
-  _T: 'LogPlayerPosition';
+  _T: "LogPlayerPosition";
   character: TelemetryCharacter;
-  vehicle: unknown;
+  vehicle: TelemetryVehicle | null;
   elapsedTime: number;
   numAlivePlayers: number;
   isGame: number;
 }
 
 export interface LogItemPickup extends TelemetryEvent {
-  _T: 'LogItemPickup';
+  _T: "LogItemPickup";
   character: TelemetryCharacter;
   item: TelemetryItem;
 }
 
 export interface LogItemEquip extends TelemetryEvent {
-  _T: 'LogItemEquip';
+  _T: "LogItemEquip";
+  character: TelemetryCharacter;
+  item: TelemetryItem;
+}
+
+export interface LogHeal extends TelemetryEvent {
+  _T: "LogHeal";
+  character: TelemetryCharacter;
+  item: TelemetryItem;
+  healamount: number;
+}
+
+export interface LogItemUse extends TelemetryEvent {
+  _T: "LogItemUse";
   character: TelemetryCharacter;
   item: TelemetryItem;
 }
 
 export interface LogGameStatePeriodic extends TelemetryEvent {
-  _T: 'LogGameStatePeriodic';
+  _T: "LogGameStatePeriodic";
   gameState: {
     elapsedTime: number;
     numAliveTeams: number;
@@ -260,6 +274,31 @@ export interface Location3D {
   x: number;
   y: number;
   z: number;
+}
+
+/** Minimal vehicle object from PUBG telemetry (LogPlayerPosition.vehicle, LogVehicleRide/Leave). */
+export interface TelemetryVehicle {
+  vehicleId?: string;
+  vehicleType?: string;
+  [key: string]: unknown;
+}
+
+export interface LogVehicleRide extends TelemetryEvent {
+  _T: "LogVehicleRide";
+  character: TelemetryCharacter;
+  vehicle: TelemetryVehicle;
+  seatIndex: number;
+  fellowPassengers?: TelemetryCharacter[];
+}
+
+export interface LogVehicleLeave extends TelemetryEvent {
+  _T: "LogVehicleLeave";
+  character: TelemetryCharacter;
+  vehicle: TelemetryVehicle;
+  rideDistance: number;
+  seatIndex: number;
+  maxSpeed?: number;
+  fellowPassengers?: TelemetryCharacter[];
 }
 
 // Analytics Types
@@ -304,16 +343,55 @@ export interface ZonePositioning {
   lateRotations: number;
 }
 
+/** Vehicle vs foot movement (from participant stats and/or LogVehicleRide/Leave, LogPlayerPosition.vehicle). */
+export interface VehicleUsage {
+  vehicleUsageRatio: number;
+  rideDistance: number;
+  walkDistance: number;
+  timeInVehicleSeconds?: number;
+  timeOnFootSeconds?: number;
+  vehicleSegmentCount?: number;
+  longFootSegmentsDuringRotation?: number;
+}
+
+/** Time in blue zone and under fire without moving. */
+export interface VulnerablePositioning {
+  timeInBlueZoneSeconds: number;
+  timeInBlueZonePercent: number;
+  underFireWithoutMovingCount: number;
+  underFireWithoutMovingSeconds?: number;
+}
+
+/** Engagements entered at full vs low health (from heal/damage/kill timeline). */
+export interface HealingDiscipline {
+  engagementsAtFullHealthCount: number;
+  engagementsAtLowHealthCount: number;
+  totalEngagements?: number;
+  avgTimeBetweenHealAndNextDamageSeconds?: number;
+}
+
+/** Time in gas and foot vs vehicle during rotations. */
+export interface RotationQuality {
+  timeInGasSeconds: number;
+  timeInGasPercent: number;
+  footDistanceDuringRotations?: number;
+  vehicleDistanceDuringRotations?: number;
+}
+
 export interface TacticalAnalysis {
   zonePositioning: ZonePositioning;
-  movementStyle: 'aggressive' | 'passive' | 'moderate';
+  movementStyle: "aggressive" | "passive" | "moderate";
   hotDropFrequency: number;
   avgSurvivalTime: number;
+  vehicleUsage?: VehicleUsage;
+  vulnerablePositioning?: VulnerablePositioning;
+  healingDiscipline?: HealingDiscipline;
+  rotationQuality?: RotationQuality;
 }
 
 export interface CombatEffectivenessScore {
   score: number;
-  grade: 'S' | 'A' | 'B' | 'C' | 'D' | 'F';
+  grade: "S" | "A" | "B" | "C" | "D" | "F";
   kda: number;
   damageRatio: number;
 }
@@ -352,6 +430,34 @@ export interface PlayerMatchStats {
   rideDistance: number;
 }
 
+export interface KillFeedEntry {
+  victim: string;
+  weapon: string;
+  distance: number; // meters
+  timestamp: string; // ISO string from telemetry _D
+  headshot: boolean;
+}
+
+/** Consumable item use (heals from LogHeal, other consumables from LogItemUse). */
+export interface ConsumableUsedEntry {
+  itemId: string;
+  count: number;
+  healamount?: number; // present for heals (LogHeal)
+}
+
+/** Damage received from a single attacker (or "Unknown" for zone/fall/etc.). */
+export interface DamageReceivedEntry {
+  attacker: string;
+  damage: number;
+  hits: number;
+}
+
+/** Damage and hit count for a body part / damage reason (e.g. HeadShot, Torso). */
+export interface BodyPartDamage {
+  damage: number;
+  hits: number;
+}
+
 export interface PlayerAnalysis {
   name: string;
   matchesAnalyzed: number;
@@ -360,15 +466,25 @@ export interface PlayerAnalysis {
   weapons: WeaponAnalysis;
   tactics: TacticalAnalysis;
   combat: CombatAnalysis;
+  killFeed?: KillFeedEntry[];
+  /** Consumables used (heals + boosts/pills from LogHeal / LogItemUse). */
+  consumablesUsed?: ConsumableUsedEntry[];
+  /** Damage received per attacker. */
+  damageReceived?: DamageReceivedEntry[];
+  /** Damage breakdown by body part (damageReason). */
+  bodyPartBreakdown?: Record<string, BodyPartDamage>;
 }
 
 export interface Insight {
-  category: 'aim' | 'weapons' | 'tactics' | 'combat';
-  severity: 'high' | 'medium' | 'low';
+  category: "aim" | "weapons" | "tactics" | "combat";
+  severity: "high" | "medium" | "low";
   player: string;
   message: string;
   recommendation: string;
 }
+
+/** How the report was produced: single match or today's matches. */
+export type PostmortemReportMode = "single" | "today";
 
 export interface SquadAnalysis {
   players: PlayerAnalysis[];
@@ -376,6 +492,8 @@ export interface SquadAnalysis {
   dateRange: { start: string; end: string };
   insights: Insight[];
   mapName?: string;
+  /** When from postmortem: "single" = one match, "today" = all matches from current day. */
+  reportMode?: PostmortemReportMode;
   squadStats: {
     avgPlacement: number;
     totalKills: number;

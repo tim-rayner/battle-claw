@@ -3,7 +3,7 @@ import Table from 'cli-table3';
 import { ApiClient } from '../lib/api-client';
 import { PlayerService } from '../lib/services/player-service';
 import { sanitizePlayerName, validatePlatform } from '../utils/validators';
-import { getWeaponName } from '../constants/weapons';
+import { resolveWeaponName } from '../constants/weapons';
 import { formatPercent } from '../utils/formatters';
 
 interface MasteryCommandOptions {
@@ -72,7 +72,7 @@ export async function runMastery(
 
     let weapons = Object.entries(weaponsData)
       .map(([id, stats]) => ({
-        name: getWeaponName(id),
+        name: resolveWeaponName(id),
         rawId: id,
         kills: stats.kills ?? 0,
         headshotKills: stats.headshotKills ?? 0,
@@ -80,16 +80,23 @@ export async function runMastery(
         longestKill: (stats.longestKill ?? 0) / 100, // cm to meters
         headshotRate: stats.kills > 0 ? (stats.headshotKills ?? 0) / stats.kills : 0,
       }))
-      .filter(w => w.kills > 0)
+      .filter(w => w.kills > 0 && w.name !== 'Unknown')
       .sort((a, b) => b.kills - a.kills);
 
-    // Filter by weapon name if specified
+    // Filter by weapon name if specified — resolve user input through weapon mapping
     if (opts.weapon) {
-      const filterLower = opts.weapon.toLowerCase();
-      weapons = weapons.filter(
-        w => w.name.toLowerCase().includes(filterLower) ||
-             w.rawId.toLowerCase().includes(filterLower)
-      );
+      const resolved = resolveWeaponName(opts.weapon);
+      if (resolved !== 'Unknown') {
+        // User input resolved to a known weapon — exact match on resolved name
+        weapons = weapons.filter(w => w.name === resolved);
+      } else {
+        // Fallback to substring search
+        const filterLower = opts.weapon.toLowerCase();
+        weapons = weapons.filter(
+          w => w.name.toLowerCase().includes(filterLower) ||
+               w.rawId.toLowerCase().includes(filterLower)
+        );
+      }
     }
 
     // Limit to top N

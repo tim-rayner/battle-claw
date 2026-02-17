@@ -1,23 +1,22 @@
-import { ApiClient } from './api-client';
-import { PlayerService } from './services/player-service';
-import { MatchService } from './services/match-service';
-import { TelemetryService } from './services/telemetry-service';
-import { AimAnalyzer } from './analytics/aim-analyzer';
-import { WeaponAnalyzer } from './analytics/weapon-analyzer';
-import { TacticalAnalyzer } from './analytics/tactical-analyzer';
-import { CombatAnalyzer } from './analytics/combat-analyzer';
-import { InsightGenerator } from './insight-generator';
 import {
-  SquadAnalysis,
-  PlayerAnalysis,
-  ProcessedMatchData,
   AimAnalysis,
-  WeaponAnalysis,
-  TacticalAnalysis,
   CombatAnalysis,
   ParticipantStats,
+  PlayerAnalysis,
   PlayerMatchStats,
-} from '../types';
+  SquadAnalysis,
+  TacticalAnalysis,
+  WeaponAnalysis,
+} from "../types";
+import { AimAnalyzer } from "./analytics/aim-analyzer";
+import { CombatAnalyzer } from "./analytics/combat-analyzer";
+import { TacticalAnalyzer } from "./analytics/tactical-analyzer";
+import { WeaponAnalyzer } from "./analytics/weapon-analyzer";
+import { ApiClient } from "./api-client";
+import { InsightGenerator } from "./insight-generator";
+import { MatchService } from "./services/match-service";
+import { PlayerService } from "./services/player-service";
+import { TelemetryService } from "./services/telemetry-service";
 
 export interface AnalyzeOptions {
   players: string[];
@@ -43,24 +42,37 @@ export class Analyzer {
     this.telemetryService = new TelemetryService(api);
   }
 
-  async analyze(options: AnalyzeOptions, onProgress?: (msg: string) => void): Promise<SquadAnalysis> {
-    const log = onProgress ?? ((msg: string) => process.stderr.write(`${msg}\n`));
-    const { players: playerNames, matchCount, platform, gameMode, fetchTelemetry = true } = options;
+  async analyze(
+    options: AnalyzeOptions,
+    onProgress?: (msg: string) => void,
+  ): Promise<SquadAnalysis> {
+    const log =
+      onProgress ?? ((msg: string) => process.stderr.write(`${msg}\n`));
+    const {
+      players: playerNames,
+      matchCount,
+      platform,
+      gameMode,
+      fetchTelemetry = true,
+    } = options;
 
-    log(`Fetching player data for: ${playerNames.join(', ')}...`);
+    log(`Fetching player data for: ${playerNames.join(", ")}...`);
 
     // Fetch player data in parallel
-    const playersData = await this.playerService.getPlayersByName(playerNames, platform);
+    const playersData = await this.playerService.getPlayersByName(
+      playerNames,
+      platform,
+    );
 
     if (playersData.length === 0) {
-      throw new Error(`No players found for: ${playerNames.join(', ')}`);
+      throw new Error(`No players found for: ${playerNames.join(", ")}`);
     }
 
     log(`Found ${playersData.length} player(s). Fetching recent matches...`);
 
     // Find common matches or individual matches
-    const playerMatchIds = playersData.map(p =>
-      (p.relationships.matches.data ?? []).map((m: { id: string }) => m.id)
+    const playerMatchIds = playersData.map((p) =>
+      (p.relationships.matches.data ?? []).map((m: { id: string }) => m.id),
     );
 
     // Get matches for each player
@@ -78,13 +90,13 @@ export class Analyzer {
       [...allMatchIds],
       platform,
       matchCount,
-      gameMode
+      gameMode,
     );
 
     if (matches.length === 0) {
       throw new Error(
-        'No recent matches found within the 14-day retention window. ' +
-        'Play some games first or check player names.'
+        "No recent matches found within the 14-day retention window. " +
+          "Play some games first or check player names.",
       );
     }
 
@@ -118,28 +130,29 @@ export class Analyzer {
             try {
               const allTelemetry = await this.telemetryService.fetchAndFilter(
                 telemetryUrl,
-                [playerName]
+                [playerName],
               );
               const playerTelemetry = this.telemetryService.getEventsForPlayer(
                 allTelemetry,
-                playerName
+                playerName,
               );
 
               const aim = this.aimAnalyzer.analyze(playerTelemetry, playerName);
               const weapons = this.weaponAnalyzer.analyze(
                 playerTelemetry,
                 playerName,
-                aim.weaponBreakdown
+                aim.weaponBreakdown,
               );
               const tactics = this.tacticalAnalyzer.analyze(
                 playerTelemetry,
                 playerName,
-                match.duration
+                match.duration,
+                participantStats,
               );
               const combat = this.combatAnalyzer.analyze(
                 playerTelemetry,
                 playerName,
-                participantStats
+                participantStats,
               );
 
               perMatchAim.push(aim);
@@ -148,9 +161,29 @@ export class Analyzer {
               perMatchCombat.push(combat);
             } catch (err) {
               // Telemetry fetch failed, use stats-only analysis
-              log(`    Warning: Could not fetch telemetry for match ${match.matchId}`);
+              log(
+                `    Warning: Could not fetch telemetry for match ${match.matchId}`,
+              );
               perMatchCombat.push(
-                this.combatAnalyzer.analyze({ attacks: [], fireCountEvents: [], kills: [], damageTaken: [], damageDealtEvents: [], positions: [], itemPickups: [], itemEquips: [], gameStates: [] }, playerName, participantStats)
+                this.combatAnalyzer.analyze(
+                  {
+                    attacks: [],
+                    fireCountEvents: [],
+                    kills: [],
+                    damageTaken: [],
+                    damageDealtEvents: [],
+                    positions: [],
+                    itemPickups: [],
+                    itemEquips: [],
+                    heals: [],
+                    itemUses: [],
+                    gameStates: [],
+                    vehicleRides: [],
+                    vehicleLeaves: [],
+                  },
+                  playerName,
+                  participantStats,
+                ),
               );
             }
           }
@@ -161,22 +194,32 @@ export class Analyzer {
 
       // Aggregate stats across matches
       const avgStats = this.averageStats(matchStats);
+      // Use combat damage (excludes unused Punch) for damage-dealt average when we have telemetry
+      if (perMatchCombat.length > 0) {
+        avgStats.damageDealt =
+          perMatchCombat.reduce((s, c) => s + c.damageDealt, 0) /
+          perMatchCombat.length;
+      }
 
-      const aggregatedAim = perMatchAim.length > 0
-        ? this.aimAnalyzer.aggregateAcrossMatches(perMatchAim)
-        : this.emptyAimAnalysis();
+      const aggregatedAim =
+        perMatchAim.length > 0
+          ? this.aimAnalyzer.aggregateAcrossMatches(perMatchAim)
+          : this.emptyAimAnalysis();
 
-      const aggregatedWeapons = perMatchWeapons.length > 0
-        ? this.weaponAnalyzer.aggregateAcrossMatches(perMatchWeapons)
-        : { mostEffective: 'N/A', effectiveness: {}, rankings: [] };
+      const aggregatedWeapons =
+        perMatchWeapons.length > 0
+          ? this.weaponAnalyzer.aggregateAcrossMatches(perMatchWeapons)
+          : { mostEffective: "N/A", effectiveness: {}, rankings: [] };
 
-      const aggregatedTactics = perMatchTactics.length > 0
-        ? this.tacticalAnalyzer.aggregateAcrossMatches(perMatchTactics)
-        : this.emptyTacticsAnalysis();
+      const aggregatedTactics =
+        perMatchTactics.length > 0
+          ? this.tacticalAnalyzer.aggregateAcrossMatches(perMatchTactics)
+          : this.emptyTacticsAnalysis();
 
-      const aggregatedCombat = perMatchCombat.length > 0
-        ? this.combatAnalyzer.aggregateAcrossMatches(perMatchCombat)
-        : this.emptyCombatAnalysis(avgStats);
+      const aggregatedCombat =
+        perMatchCombat.length > 0
+          ? this.combatAnalyzer.aggregateAcrossMatches(perMatchCombat)
+          : this.emptyCombatAnalysis(avgStats);
 
       playerAnalyses.push({
         name: playerName,
@@ -190,14 +233,16 @@ export class Analyzer {
     }
 
     if (playerAnalyses.length === 0) {
-      throw new Error('None of the specified players participated in recent matches.');
+      throw new Error(
+        "None of the specified players participated in recent matches.",
+      );
     }
 
     // Generate insights
     const insights = this.insightGenerator.generate(playerAnalyses);
 
     // Build date range
-    const matchDates = matches.map(m => new Date(m.createdAt).getTime());
+    const matchDates = matches.map((m) => new Date(m.createdAt).getTime());
     const dateRange = {
       start: new Date(Math.min(...matchDates)).toISOString(),
       end: new Date(Math.max(...matchDates)).toISOString(),
@@ -205,10 +250,16 @@ export class Analyzer {
 
     // Squad stats
     const squadStats = {
-      avgPlacement: playerAnalyses.reduce((s, p) => s + p.avgStats.winPlace, 0) / playerAnalyses.length,
-      totalKills: playerAnalyses.reduce((s, p) => s + p.avgStats.kills, 0) * matches.length,
+      avgPlacement:
+        playerAnalyses.reduce((s, p) => s + p.avgStats.winPlace, 0) /
+        playerAnalyses.length,
+      totalKills:
+        playerAnalyses.reduce((s, p) => s + p.avgStats.kills, 0) *
+        matches.length,
       avgDamage: playerAnalyses.reduce((s, p) => s + p.avgStats.damageDealt, 0),
-      avgSurvivalTime: playerAnalyses.reduce((s, p) => s + p.avgStats.survivalTime, 0) / playerAnalyses.length,
+      avgSurvivalTime:
+        playerAnalyses.reduce((s, p) => s + p.avgStats.survivalTime, 0) /
+        playerAnalyses.length,
     };
 
     return {
@@ -227,20 +278,20 @@ export class Analyzer {
 
     return {
       name: stats[0].name,
-      kills: sum('kills'),
+      kills: sum("kills"),
       deaths: 1,
-      assists: sum('assists'),
-      damageDealt: sum('damageDealt'),
+      assists: sum("assists"),
+      damageDealt: sum("damageDealt"),
       damageTaken: 0, // Populated from telemetry in combat analyzer
-      headshotKills: sum('headshotKills'),
-      DBNOs: sum('DBNOs'),
-      revives: sum('revives'),
-      boosts: sum('boosts'),
-      heals: sum('heals'),
-      walkDistance: sum('walkDistance'),
-      rideDistance: sum('rideDistance'),
-      survivalTime: sum('timeSurvived'),
-      winPlace: sum('winPlace'),
+      headshotKills: sum("headshotKills"),
+      DBNOs: sum("DBNOs"),
+      revives: sum("revives"),
+      boosts: sum("boosts"),
+      heals: sum("heals"),
+      walkDistance: sum("walkDistance"),
+      rideDistance: sum("rideDistance"),
+      survivalTime: sum("timeSurvived"),
+      winPlace: sum("winPlace"),
     };
   }
 
@@ -249,7 +300,7 @@ export class Analyzer {
       overallAccuracy: 0,
       weaponBreakdown: {},
       headshotRate: 0,
-      bestWeapon: 'N/A',
+      bestWeapon: "N/A",
       bestWeaponAccuracy: 0,
     };
   }
@@ -263,7 +314,7 @@ export class Analyzer {
         avgDistanceToCenter: 0,
         lateRotations: 0,
       },
-      movementStyle: 'moderate',
+      movementStyle: "moderate",
       hotDropFrequency: 0,
       avgSurvivalTime: 0,
     };
@@ -272,14 +323,28 @@ export class Analyzer {
   private emptyCombatAnalysis(stats: PlayerMatchStats): CombatAnalysis {
     return this.combatAnalyzer.aggregateAcrossMatches([
       this.combatAnalyzer.analyze(
-        { attacks: [], fireCountEvents: [], kills: [], damageTaken: [], damageDealtEvents: [], positions: [], itemPickups: [], itemEquips: [], gameStates: [] },
+        {
+          attacks: [],
+          fireCountEvents: [],
+          kills: [],
+          damageTaken: [],
+          damageDealtEvents: [],
+          positions: [],
+          itemPickups: [],
+          itemEquips: [],
+          heals: [],
+          itemUses: [],
+          gameStates: [],
+          vehicleRides: [],
+          vehicleLeaves: [],
+        },
         stats.name,
         {
           kills: stats.kills,
           assists: stats.assists,
           damageDealt: stats.damageDealt,
           DBNOs: stats.DBNOs,
-        }
+        },
       ),
     ]);
   }
