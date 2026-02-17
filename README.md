@@ -1,3 +1,5 @@
+<img width="1280" height="720" alt="image" src="https://github.com/user-attachments/assets/7155a0e9-cd27-4ed5-b3e0-57d0e2ca0cf4" />
+
 # Battle Claw - PUBG Stats CLI
 
 Battle Claw is a CLI tool that fetches and analyzes PUBG match data to support **tactical coaching and improvement**—covering aim, weapon use, combat effectiveness, and full tactics (map movement, vehicle use, positioning, healing, and rotations). It is designed to be used by **humans and by LLMs**: paste or pipe the `-o context` output into an AI assistant to get structured coaching advice.
