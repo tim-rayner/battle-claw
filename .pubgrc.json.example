@@ -1,0 +1,18 @@
+{
+  "platform": "steam",
+  "defaultPlayers": ["Player1", "Player2", "Player3", "Player4"],
+  "matchLimit": 10,
+  "caching": {
+    "enabled": true,
+    "ttl": 3600
+  },
+  "analytics": {
+    "minAccuracyThreshold": 0.15,
+    "engagementRanges": {
+      "close": [0, 50],
+      "medium": [50, 150],
+      "long": [150, 300],
+      "extreme": [300, 1000]
+    }
+  }
+}

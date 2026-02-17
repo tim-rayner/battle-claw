@@ -1,0 +1,6 @@
+node_modules/
+dist/
+.env
+.pubgrc.json
+*.js.map
+*.d.ts.map
