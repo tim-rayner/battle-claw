@@ -1,4 +1,4 @@
-<img width="1280" height="720" alt="image" src="https://github.com/user-attachments/assets/7155a0e9-cd27-4ed5-b3e0-57d0e2ca0cf4" />
+<img width="1280" height="720" alt="image" src="https://github.com/user-attachments/assets/ed5c7e2c-b8a3-4741-b41d-1f27f8208fa0" />
 
 # Battle Claw - PUBG Stats CLI
 
